@@ -19,13 +19,11 @@ func main() {
 
 	log.Println("Enter some text (press Ctrl+D or Ctrl+Z to end):")
 
-	// Read input line by line
 	for scanner.Scan() {
-		text := scanner.Text() // Get the current line of text
-		if text == "" {
-			break // Exit loop if an empty line is entered
+		text := scanner.Text()
+		for i := 0; i < 100; i++ { // Simulate large traffic spike
+			go sendMessage(text)
 		}
-		go sendMessage(text)
 	}
 
 	log.Println("Entry finished, thanks")
@@ -38,19 +36,19 @@ func main() {
 func sendMessage(text string) {
 	connection, err := net.Dial(SERVER_TYPE, SERVER_ADDRESS)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	message := []byte(text)
-	log.Println("Sending: " + text)
-
 	writeMessage(connection, message)
-	readResponse(connection)
+	response := readResponse(connection)
+
+	log.Printf("Sent: %v. Recieved: %v.", text, response)
 
 	defer connection.Close()
 }
 
-func readResponse(connection net.Conn) {
+func readResponse(connection net.Conn) string {
 	buffer := make([]byte, 1024)
 	mLen, readErr := connection.Read(buffer)
 
@@ -58,7 +56,7 @@ func readResponse(connection net.Conn) {
 		log.Println("Error reading: ", readErr.Error())
 	}
 
-	log.Printf("Recieved %v Bytes with message: %v", mLen, string(buffer[:mLen]))
+	return string(buffer[:mLen])
 }
 
 func writeMessage(connection net.Conn, message []byte) {
