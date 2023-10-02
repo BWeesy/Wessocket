@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync"
 )
 
 const (
@@ -16,47 +17,64 @@ const (
 
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
+	connection := createConnection(scanner)
+	defer connection.Close()
 
-	log.Println("Enter some text (press Ctrl+D or Ctrl+Z to end):")
+	log.Println("Enter text to send to other users:")
 
-	for scanner.Scan() {
-		text := scanner.Text()
-		for i := 0; i < 100; i++ { // Simulate large traffic spike
-			go sendMessage(text)
-		}
-	}
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	go handleWrites(connection, scanner, wg)
+	go handleReads(connection, wg)
 
-	log.Println("Entry finished, thanks")
-
-	if err := scanner.Err(); err != nil {
-		log.Println("Error:", err)
-	}
+	wg.Wait()
 }
 
-func sendMessage(text string) {
+func createConnection(scanner *bufio.Scanner) net.Conn {
+	log.Println("Start by declaring your name:")
+	scanner.Scan()
+	name := scanner.Text()
 	connection, err := net.Dial(SERVER_TYPE, SERVER_ADDRESS)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	message := []byte(text)
-	writeMessage(connection, message)
-	response := readResponse(connection)
-
-	log.Printf("Sent: %v. Recieved: %v.", text, response)
-
-	defer connection.Close()
+	log.Println("Connection created:")
+	go sendMessage(connection, name)
+	return connection
 }
 
-func readResponse(connection net.Conn) string {
+func handleReads(connection net.Conn, wg *sync.WaitGroup) {
 	buffer := make([]byte, 1024)
-	mLen, readErr := connection.Read(buffer)
+	defer wg.Done()
+	for {
+		mLen, readErr := connection.Read(buffer)
 
-	if readErr != nil {
-		log.Println("Error reading: ", readErr.Error())
+		if readErr != nil {
+			log.Println("Error reading: ", readErr.Error())
+			break
+		}
+		response := string(buffer[:mLen])
+
+		log.Printf(response)
 	}
+}
 
-	return string(buffer[:mLen])
+func handleWrites(connection net.Conn, scanner *bufio.Scanner, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for {
+		for scanner.Scan() {
+			text := scanner.Text()
+			go sendMessage(connection, text)
+		}
+		if err := scanner.Err(); err != nil {
+			log.Println("Error writing:", err.Error())
+		}
+	}
+}
+
+func sendMessage(connection net.Conn, text string) {
+	message := []byte(text)
+	writeMessage(connection, message)
 }
 
 func writeMessage(connection net.Conn, message []byte) {
