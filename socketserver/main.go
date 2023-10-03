@@ -52,7 +52,16 @@ func handleConnection(connection net.Conn, broker *broker) {
 	defer broker.unsubscribe(messages)
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
-	go readIncomingAndPublish(connection, broker, wg)
+
+	name, namingErr := acceptName(connection)
+	if namingErr != nil {
+		log.Println("Error setting name: ", namingErr.Error())
+		return
+	}
+
+	broker.publish(message{senderName: "Server Announcer", content: fmt.Sprintf("%s has entered the chat", name)})
+
+	go readIncomingAndPublish(connection, broker, wg, name)
 	go writeOutgoingMessages(connection, messages, wg)
 	wg.Wait()
 }
@@ -69,16 +78,10 @@ func writeOutgoingMessages(connection net.Conn, messages chan message, wg *sync.
 	}
 }
 
-func readIncomingAndPublish(connection net.Conn, broker *broker, wg *sync.WaitGroup) {
+func readIncomingAndPublish(connection net.Conn, broker *broker, wg *sync.WaitGroup, name string) {
 	defer wg.Done()
 	buffer := make([]byte, 1024)
 	defer connection.Close()
-
-	name, namingErr := acceptName(connection)
-	if namingErr != nil {
-		log.Println("Error setting name: ", namingErr.Error())
-		return
-	}
 
 	for {
 		mLen, err := connection.Read(buffer)
