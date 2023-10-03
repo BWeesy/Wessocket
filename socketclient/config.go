@@ -24,7 +24,7 @@ func getConfig() configuration {
 	err := config.LoadFiles("config.yml")
 
 	if err != nil {
-		log.Println("Unable to find config.yaml, using defaults")
+		log.Println("Unable to find config.yml, using defaults")
 		return configuration{server_host: "localhost", server_port: "9988", server_type: "tcp"}
 	}
 

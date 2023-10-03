@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net"
 
 	"github.com/gookit/config/v2"
 	"github.com/gookit/config/v2/yaml"
@@ -29,8 +30,20 @@ func getConfig() configuration {
 	}
 
 	return configuration{
-		server_host: config.String("server_host"),
+		server_host: GetOutboundIP().String(),
 		server_port: config.String("server_port"),
 		server_type: config.String("server_type"),
 	}
+}
+
+func GetOutboundIP() net.IP {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP
 }
