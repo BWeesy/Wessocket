@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 )
 
 const (
@@ -18,8 +19,14 @@ type message struct {
 	content    string
 }
 
+func (m message) toString() string {
+	return fmt.Sprintf("%v - %v", m.senderName, m.content)
+}
+
 func main() {
-	messages := make(chan message)
+	broker := newBroker()
+	go broker.start()
+	defer broker.stop()
 
 	fmt.Println("Server running...")
 	server, err := net.Listen(SERVER_TYPE, SERVER_ADDRESS)
@@ -39,27 +46,36 @@ func main() {
 			log.Fatal("Error Accepting: ", err.Error())
 		}
 
+		go handleConnection(connection, broker)
 		log.Println("Client Connected")
-		go processConnectionForReads(connection, messages)
-		go processConnectionForWrites(connection, messages)
 	}
+
 }
 
-func processConnectionForWrites(connection net.Conn, messages chan message) {
+func handleConnection(connection net.Conn, broker *broker) {
+	messages := broker.subscribe()
+	defer broker.unsubscribe(messages)
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	go readIncomingAndPublish(connection, broker, wg)
+	go writeOutgoingMessages(connection, messages, wg)
+	wg.Wait()
+}
+
+func writeOutgoingMessages(connection net.Conn, messages chan message, wg *sync.WaitGroup) {
+	defer wg.Done()
 	for {
 		message := <-messages
-		log.Printf("Processing message from: %v with content: %v", message.senderName, message.content)
-		formatted := fmt.Sprintf("%v - %v", message.senderName, message.content)
-		log.Println("Writing message to connection ", string(formatted))
 
-		_, err := connection.Write([]byte(formatted))
+		_, err := connection.Write([]byte(message.toString()))
 		if err != nil {
 			log.Println("Error writing: ", err.Error())
 		}
 	}
 }
 
-func processConnectionForReads(connection net.Conn, messages chan message) {
+func readIncomingAndPublish(connection net.Conn, broker *broker, wg *sync.WaitGroup) {
+	defer wg.Done()
 	buffer := make([]byte, 1024)
 	defer connection.Close()
 
@@ -77,8 +93,9 @@ func processConnectionForReads(connection net.Conn, messages chan message) {
 		}
 
 		content := string(buffer[:mLen])
-		messages <- message{name, content}
-		log.Println("Recieved: ", message{name, content})
+		msg := message{name, content}
+		log.Println("New Message: ", msg.toString())
+		broker.publish(message{name, content})
 	}
 }
 
