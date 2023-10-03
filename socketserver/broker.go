@@ -22,6 +22,7 @@ func newBroker() *broker {
 
 func (b *broker) start() {
 	subscriptions := map[chan message]struct{}{}
+	log.Println("Broker running")
 	for {
 		select {
 		case <-b.stopCh:

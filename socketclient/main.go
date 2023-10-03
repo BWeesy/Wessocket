@@ -8,13 +8,6 @@ import (
 	"sync"
 )
 
-const (
-	SERVER_HOST    = "localhost"
-	SERVER_PORT    = "9988"
-	SERVER_TYPE    = "tcp"
-	SERVER_ADDRESS = SERVER_HOST + ":" + SERVER_PORT
-)
-
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	connection := createConnection(scanner)
@@ -31,10 +24,13 @@ func main() {
 }
 
 func createConnection(scanner *bufio.Scanner) net.Conn {
+	config := getConfig()
+	log.Printf("Got config %s", config)
+
 	log.Println("Start by declaring your name:")
 	scanner.Scan()
 	name := scanner.Text()
-	connection, err := net.Dial(SERVER_TYPE, SERVER_ADDRESS)
+	connection, err := net.Dial(config.server_type, config.getServerAddress())
 	if err != nil {
 		log.Fatal(err)
 	}

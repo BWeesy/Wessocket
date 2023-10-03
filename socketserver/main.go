@@ -7,13 +7,6 @@ import (
 	"sync"
 )
 
-const (
-	SERVER_HOST    = "localhost"
-	SERVER_PORT    = "9988"
-	SERVER_TYPE    = "tcp"
-	SERVER_ADDRESS = SERVER_HOST + ":" + SERVER_PORT
-)
-
 type message struct {
 	senderName string
 	content    string
@@ -28,8 +21,10 @@ func main() {
 	go broker.start()
 	defer broker.stop()
 
-	fmt.Println("Server running...")
-	server, err := net.Listen(SERVER_TYPE, SERVER_ADDRESS)
+	config := getConfig()
+	log.Printf("Got config %s", config)
+
+	server, err := net.Listen(config.server_type, config.getServerAddress())
 
 	if err != nil {
 		log.Fatal("Error listening:", err.Error())
@@ -37,7 +32,7 @@ func main() {
 
 	defer server.Close()
 
-	log.Println("Listening on " + SERVER_ADDRESS)
+	log.Println("Listening on " + config.getServerAddress())
 	log.Println("Waiting for client...")
 
 	for {
